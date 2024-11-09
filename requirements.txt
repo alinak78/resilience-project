@@ -1,0 +1,7 @@
+Flask
+nltk
+gensim
+pyLDAvis
+scikit-learn
+matplotlib
+pandas

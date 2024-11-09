@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Topic Modeling App</title>
+    <style>
+        body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; }
+        h1 { color: #333; }
+        #results { max-width: 800px; padding: 20px; border: 1px solid #ddd; margin-top: 20px; background-color: #f9f9f9; }
+        h2 { color: #555; }
+        button { padding: 10px 20px; background-color: #4CAF50; color: white; border: none; cursor: pointer; }
+        button:hover { background-color: #45a049; }
+    </style>
+</head>
+<body>
+    <h1>Climate Resilience Topic Modeling</h1>
+    <form id="uploadForm" enctype="multipart/form-data">
+        <label for="file">Upload CSV:</label>
+        <input type="file" id="file" name="file" accept=".csv" required>
+        <button type="submit">Analyze</button>
+    </form>
+    <div id="results" style="display:none;">
+        <h2>Sample Bigrams</h2>
+        <p id="bigrams"></p>
+        <h2>Sklearn LDA Topics</h2>
+        <div id="topics"></div>
+        <h2>Interactive LDA Visualization</h2>
+        <div id="ldaVis"></div>
+    </div>
+
+    <script>
+        document.getElementById('uploadForm').onsubmit = async function(event) {
+            event.preventDefault();
+            const formData = new FormData();
+            formData.append("file", document.getElementById("file").files[0]);
+
+            const response = await fetch("/analyze", {
+                method: "POST",
+                body: formData
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                document.getElementById("results").style.display = "block";
+
+                // Display sample bigrams
+                document.getElementById("bigrams").innerText = result.bigrams.join(", ");
+
+                // Display Sklearn topics
+                let topicsHTML = "";
+                result.sklearn_topics.forEach((topic, index) => {
+                    topicsHTML += `<h3>Topic #${index + 1}</h3><p>${topic.join(", ")}</p>`;
+                });
+                document.getElementById("topics").innerHTML = topicsHTML;
+
+                // Display interactive LDA visualization
+                document.getElementById("ldaVis").innerHTML = result.lda_html;
+            } else {
+                alert("Error analyzing the file.");
+            }
+        };
+    </script>
+</body>
+</html>

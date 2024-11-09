@@ -8,6 +8,7 @@ import gensim
 from gensim import corpora, models
 import pyLDAvis
 import pyLDAvis.gensim
+import os
 
 nltk.download('stopwords')
 from nltk.corpus import stopwords
@@ -70,4 +71,5 @@ def analyze():
     })
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+

@@ -1,75 +1,72 @@
-from flask import Flask, render_template, request, jsonify
 import pandas as pd
 import nltk
 from nltk.util import ngrams
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.decomposition import LatentDirichletAllocation
 import gensim
-from gensim import corpora, models
+from gensim import corpora
 import pyLDAvis
 import pyLDAvis.gensim
-import os
+import json
 
+# Download required NLTK data
 nltk.download('stopwords')
+nltk.download('punkt')
 from nltk.corpus import stopwords
 
-app = Flask(__name__)
+# Load the CSV file
+df = pd.read_csv("climate_adaptation_solutions_full.csv")
+descriptions = df['Description'].dropna().tolist()
 
+# Preprocess text function
 def preprocess_text(text):
     tokens = nltk.word_tokenize(text.lower())
     tokens = [word for word in tokens if word.isalnum()]
     tokens = [word for word in tokens if word not in stopwords.words('english')]
     return tokens
 
-def topic_modeling(descriptions):
-    # Generate bigrams
-    bigrams = [' '.join(gram) for desc in descriptions for gram in ngrams(preprocess_text(desc), 2)]
-    
-    # Vectorize text for LDA
-    vectorizer = CountVectorizer(max_df=0.95, min_df=2, stop_words='english')
-    dtm = vectorizer.fit_transform(descriptions)
-    
-    # Sklearn LDA
-    lda_model = LatentDirichletAllocation(n_components=5, random_state=42)
+# Generate bigrams function
+def generate_bigrams(texts):
+    bigrams = [' '.join(gram) for desc in texts for gram in ngrams(preprocess_text(desc), 2)]
+    return bigrams
+
+# Generate bigrams for descriptions
+bigrams = generate_bigrams(descriptions)
+print("Sample bigrams:", bigrams[:10])  # Display sample bigrams
+
+# Sklearn LDA for topic modeling
+def sklearn_lda(dtm, vectorizer, num_topics=15, num_words=10):
+    lda_model = LatentDirichletAllocation(n_components=num_topics, random_state=42)
     lda_model.fit(dtm)
     
-    # Get topics for Sklearn
-    sklearn_topics = []
-    num_words = 10
+    topics = []
     for topic in lda_model.components_:
         top_words = [vectorizer.get_feature_names_out()[i] for i in topic.argsort()[-num_words:]]
-        sklearn_topics.append(top_words)
-    
-    # Gensim LDA
-    texts = [preprocess_text(description) for description in descriptions]
+        topics.append(top_words)
+    return topics
+
+# Vectorize text and apply LDA with sklearn
+vectorizer = CountVectorizer(max_df=0.95, min_df=2, stop_words='english')
+dtm = vectorizer.fit_transform(descriptions)
+sklearn_topics = sklearn_lda(dtm, vectorizer)
+print("Sklearn Topics:", sklearn_topics)
+
+# Gensim LDA for topic modeling
+def gensim_lda(texts, num_topics=15, passes=15):
     dictionary = corpora.Dictionary(texts)
     corpus = [dictionary.doc2bow(text) for text in texts]
-    lda_gensim = gensim.models.LdaModel(corpus, num_topics=5, id2word=dictionary, passes=15, random_state=42)
-    
-    # PyLDAvis HTML
-    lda_display = pyLDAvis.gensim.prepare(lda_gensim, corpus, dictionary)
-    lda_html = pyLDAvis.prepared_data_to_html(lda_display)
+    lda_model = gensim.models.LdaModel(corpus, num_topics=num_topics, id2word=dictionary, passes=passes, random_state=42)
+    return lda_model, corpus, dictionary
 
-    return bigrams[:10], sklearn_topics, lda_html
+# Preprocess text for Gensim LDA
+texts = [preprocess_text(description) for description in descriptions]
+lda_gensim, corpus, dictionary = gensim_lda(texts)
 
-@app.route('/')
-def index():
-    return render_template('index.html')
+# Save Gensim LDA visualization as HTML
+lda_display = pyLDAvis.gensim.prepare(lda_gensim, corpus, dictionary)
+pyLDAvis.save_html(lda_display, "lda_visualization.html")
+print("LDA visualization saved as 'lda_visualization.html'")
 
-@app.route('/analyze', methods=['POST'])
-def analyze():
-    file = request.files['file']
-    df = pd.read_csv(file)
-    descriptions = df['Description'].dropna().tolist()
-    
-    bigrams, sklearn_topics, lda_html = topic_modeling(descriptions)
-    
-    return jsonify({
-        "bigrams": bigrams,
-        "sklearn_topics": sklearn_topics,
-        "lda_html": lda_html
-    })
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
 

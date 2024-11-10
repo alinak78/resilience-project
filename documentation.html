@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code Documentation</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { color: #333; }
+        p { line-height: 1.6; }
+        pre { background-color: #f4f4f4; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        h2 { margin-top: 30px; }
+    </style>
+</head>
+<body>
+    <h1>Code Documentation: Topic Modeling and N-Grams Generation</h1>
+    <p>This documentation provides a step-by-step explanation of how the Python code processes climate adaptation solution descriptions to generate topics and bigrams. The code leverages libraries such as NLTK, Sklearn, and Gensim for text preprocessing, topic modeling, and data visualization.</p>
+
+    <h2>1. Data Loading</h2>
+    <p>In this step, the code loads a CSV file containing descriptions of climate adaptation solutions. The file is read using Pandas, a data analysis library, and any rows with missing values in the 'Description' column are removed. This step is essential for preparing a clean dataset for analysis.</p>
+    <pre>
+import pandas as pd
+
+# Load the CSV file
+df = pd.read_csv("climate_adaptation_solutions.csv")
+descriptions = df['Description'].dropna().tolist()
+    </pre>
+
+    <h2>2. Text Preprocessing</h2>
+    <p>This section defines a function to preprocess the text in each description. It converts text to lowercase, tokenizes it into individual words, and removes any stop words (common words like "the" and "and" that don’t contribute much meaning). Additionally, only alphanumeric tokens are kept. This step helps in standardizing the text data, making it easier for topic modeling algorithms to process.</p>
+    <pre>
+import nltk
+from nltk.corpus import stopwords
+
+# Download required NLTK data
+nltk.download('stopwords')
+nltk.download('punkt')
+from nltk.corpus import stopwords
+
+# Preprocess text function
+def preprocess_text(text):
+    tokens = nltk.word_tokenize(text.lower())
+    tokens = [word for word in tokens if word.isalnum()]
+    tokens = [word for word in tokens if word not in stopwords.words('english')]
+    return tokens
+    </pre>
+
+    <h2>3. N-Grams Generation</h2>
+    <p>N-grams are sequences of n consecutive words in a text. In this code, bigrams (two-word phrases) are generated from each preprocessed description. The bigrams provide insight into common phrases within the descriptions, which can help in understanding key concepts and identifying recurring terms in the dataset.</p>
+    <pre>
+from nltk.util import ngrams
+
+# Generate bigrams function
+def generate_bigrams(texts):
+    bigrams = [' '.join(gram) for desc in texts for gram in ngrams(preprocess_text(desc), 2)]
+    return bigrams
+
+# Generate bigrams for descriptions
+bigrams = generate_bigrams(descriptions)
+print("Sample bigrams:", bigrams[:10])  # Display sample bigrams
+    </pre>
+
+    <h2>4. Sklearn LDA (Latent Dirichlet Allocation)</h2>
+    <p>This section implements topic modeling using Sklearn's <code>LatentDirichletAllocation</code> (LDA), a popular algorithm for identifying topics in text data. First, the descriptions are vectorized, transforming text into a numerical format where each word is represented by a unique index. LDA then extracts a specified number of topics, with each topic represented by a set of words that are most significant to that topic. Here, we display the top words associated with each topic.</p>
+    <pre>
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.decomposition import LatentDirichletAllocation
+
+# Vectorize text for Sklearn LDA
+vectorizer = CountVectorizer(max_df=0.95, min_df=2, stop_words='english')
+dtm = vectorizer.fit_transform(descriptions)
+
+# Sklearn LDA function
+def sklearn_lda(dtm, vectorizer, num_topics=5, num_words=10):
+    lda_model = LatentDirichletAllocation(n_components=num_topics, random_state=42)
+    lda_model.fit(dtm)
+    
+    topics = []
+    for topic in lda_model.components_:
+        top_words = [vectorizer.get_feature_names_out()[i] for i in topic.argsort()[-num_words:]]
+        topics.append(top_words)
+    return topics
+
+# Get the top words for each topic
+sklearn_topics = sklearn_lda(dtm, vectorizer)
+print("Sklearn Topics:", sklearn_topics)
+    </pre>
+
+    <h2>5. Gensim LDA with Visualization</h2>
+    <p>In addition to Sklearn, the code uses Gensim, another library for topic modeling. Here, descriptions are first converted to a bag-of-words format. Then, Gensim's LDA model is trained to extract topics from the data. Finally, PyLDAvis, a visualization tool for topic modeling, is used to create an interactive HTML visualization, where users can explore the importance of terms across different topics.</p>
+    <pre>
+import gensim
+from gensim import corpora
+import pyLDAvis
+import pyLDAvis.gensim
+
+# Preprocess text for Gensim LDA
+texts = [preprocess_text(description) for description in descriptions]
+dictionary = corpora.Dictionary(texts)
+corpus = [dictionary.doc2bow(text) for text in texts]
+
+# Gensim LDA function
+def gensim_lda(texts, num_topics=5, passes=15):
+    lda_model = gensim.models.LdaModel(corpus, num_topics=num_topics, id2word=dictionary, passes=passes, random_state=42)
+    return lda_model, corpus, dictionary
+
+# Generate LDA topics and visualize
+lda_gensim, corpus, dictionary = gensim_lda(texts)
+lda_display = pyLDAvis.gensim.prepare(lda_gensim, corpus, dictionary)
+pyLDAvis.save_html(lda_display, "lda_visualization.html")
+print("LDA visualization saved as 'lda_visualization.html'")
+    </pre>
+
+    <h2>6. Saving Results</h2>
+    <p>To ensure the results of the analysis are easily accessible, this section saves the generated bigrams and top words for each topic to a JSON file. This step is useful for preserving the analysis outcomes, which can be loaded later or shared as needed. Additionally, the interactive LDA visualization generated by PyLDAvis is saved as an HTML file, making it easy to view in a web browser.</p>
+    <pre>
+import json
+
+# Save bigrams and sklearn topics to JSON
+results = {
+    "bigrams": bigrams[:10],  # Save only a sample of bigrams for simplicity
+    "sklearn_topics": sklearn_topics
+}
+
+with open("results.json", "w") as f:
+    json.dump(results, f)
+print("Results saved to 'results.json'")
+    </pre>
+
+</body>
+</html>

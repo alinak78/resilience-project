@@ -15,7 +15,7 @@ nltk.download('punkt')
 from nltk.corpus import stopwords
 
 # Load the CSV file
-df = pd.read_csv("climate_adaptation_solutions_full.csv")
+df = pd.read_csv("climate_adaptation_solutions-2.csv")
 descriptions = df['Description'].dropna().tolist()
 
 # Preprocess text function
@@ -35,7 +35,7 @@ bigrams = generate_bigrams(descriptions)
 print("Sample bigrams:", bigrams[:10])  # Display sample bigrams
 
 # Sklearn LDA for topic modeling
-def sklearn_lda(dtm, vectorizer, num_topics=15, num_words=10):
+def sklearn_lda(dtm, vectorizer, num_topics=10, num_words=12):
     lda_model = LatentDirichletAllocation(n_components=num_topics, random_state=42)
     lda_model.fit(dtm)
     
@@ -52,7 +52,7 @@ sklearn_topics = sklearn_lda(dtm, vectorizer)
 print("Sklearn Topics:", sklearn_topics)
 
 # Gensim LDA for topic modeling
-def gensim_lda(texts, num_topics=15, passes=15):
+def gensim_lda(texts, num_topics=10, passes=15):
     dictionary = corpora.Dictionary(texts)
     corpus = [dictionary.doc2bow(text) for text in texts]
     lda_model = gensim.models.LdaModel(corpus, num_topics=num_topics, id2word=dictionary, passes=passes, random_state=42)
@@ -64,8 +64,8 @@ lda_gensim, corpus, dictionary = gensim_lda(texts)
 
 # Save Gensim LDA visualization as HTML
 lda_display = pyLDAvis.gensim.prepare(lda_gensim, corpus, dictionary)
-pyLDAvis.save_html(lda_display, "lda_visualization.html")
-print("LDA visualization saved as 'lda_visualization.html'")
+pyLDAvis.save_html(lda_display, "lda_visualization_english.html")
+print("LDA visualization saved as 'lda_visualization_english.html'")
 
 
 

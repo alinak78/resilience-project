@@ -7,7 +7,10 @@ import gensim
 from gensim import corpora
 import pyLDAvis
 import pyLDAvis.gensim
-import json
+import matplotlib.pyplot as plt
+from wordcloud import WordCloud
+from io import BytesIO
+import base64
 
 # Download required NLTK data
 nltk.download('stopwords')
@@ -16,7 +19,12 @@ from nltk.corpus import stopwords
 
 # Load the CSV file
 df = pd.read_csv("climate_adaptation_solutions-2.csv")
-descriptions = df['Description'].dropna().tolist()
+
+# Use only the 'Description' column
+if 'Description' in df.columns:
+    descriptions = df['Description'].dropna().tolist()
+else:
+    raise ValueError("'Description' column is missing in the dataset.")
 
 # Preprocess text function
 def preprocess_text(text):
@@ -25,47 +33,95 @@ def preprocess_text(text):
     tokens = [word for word in tokens if word not in stopwords.words('english')]
     return tokens
 
-# Generate bigrams function
-def generate_bigrams(texts):
-    bigrams = [' '.join(gram) for desc in texts for gram in ngrams(preprocess_text(desc), 2)]
-    return bigrams
-
-# Generate bigrams for descriptions
-bigrams = generate_bigrams(descriptions)
-print("Sample bigrams:", bigrams[:10])  # Display sample bigrams
-
-# Sklearn LDA for topic modeling
-def sklearn_lda(dtm, vectorizer, num_topics=10, num_words=12):
-    lda_model = LatentDirichletAllocation(n_components=num_topics, random_state=42)
-    lda_model.fit(dtm)
-    
-    topics = []
-    for topic in lda_model.components_:
-        top_words = [vectorizer.get_feature_names_out()[i] for i in topic.argsort()[-num_words:]]
-        topics.append(top_words)
-    return topics
-
-# Vectorize text and apply LDA with sklearn
-vectorizer = CountVectorizer(max_df=0.95, min_df=2, stop_words='english')
-dtm = vectorizer.fit_transform(descriptions)
-sklearn_topics = sklearn_lda(dtm, vectorizer)
-print("Sklearn Topics:", sklearn_topics)
+# Preprocess the description texts
+texts = [preprocess_text(text) for text in descriptions]
 
 # Gensim LDA for topic modeling
-def gensim_lda(texts, num_topics=10, passes=15):
+def gensim_lda(texts, num_topics=15, passes=15):
     dictionary = corpora.Dictionary(texts)
     corpus = [dictionary.doc2bow(text) for text in texts]
     lda_model = gensim.models.LdaModel(corpus, num_topics=num_topics, id2word=dictionary, passes=passes, random_state=42)
     return lda_model, corpus, dictionary
 
-# Preprocess text for Gensim LDA
-texts = [preprocess_text(description) for description in descriptions]
 lda_gensim, corpus, dictionary = gensim_lda(texts)
 
 # Save Gensim LDA visualization as HTML
 lda_display = pyLDAvis.gensim.prepare(lda_gensim, corpus, dictionary)
-pyLDAvis.save_html(lda_display, "lda_visualization_english.html")
-print("LDA visualization saved as 'lda_visualization_english.html'")
+pyLDAvis_html = pyLDAvis.prepared_data_to_html(lda_display)
 
+# Extract topic-term distributions with saliency filtering
+def get_prevalent_words_with_saliency(lda_model, num_words=15, saliency_threshold=0.7):
+    topics = lda_model.show_topics(num_topics=-1, num_words=num_words, formatted=False)
+    all_topic_words = {}
+    word_saliency = {}
 
+    # Collect words and weights for each topic
+    for topic_id, words in topics:
+        topic_words = {word: weight for word, weight in words}
+        all_topic_words[f"Topic {topic_id + 1}"] = topic_words
 
+        # Compute overall saliency for each word
+        for word, weight in topic_words.items():
+            word_saliency[word] = word_saliency.get(word, 0) + weight
+
+    # Filter words by saliency and uniqueness
+    unique_topic_words = {}
+    for topic, words in all_topic_words.items():
+        unique_words = {
+            word: weight
+            for word, weight in words.items()
+            if word_saliency[word] <= saliency_threshold
+        }
+        unique_topic_words[topic] = unique_words
+
+    return unique_topic_words
+
+# Generate inline HTML word clouds in a grid layout
+def generate_html_wordclouds_grid(topic_words, grid_columns=3):
+    html_content = "<h1>Word Clouds for LDA Topics (Filtered by Saliency)</h1>"
+    html_content += '<div style="display: flex; flex-wrap: wrap; gap: 20px;">'
+
+    for idx, (topic, words) in enumerate(topic_words.items(), start=1):
+        # Generate the word cloud
+        wordcloud = WordCloud(width=400, height=300, background_color="white").generate_from_frequencies(words)
+        
+        # Save the word cloud to a BytesIO object
+        img_buffer = BytesIO()
+        wordcloud.to_image().save(img_buffer, format="PNG")
+        img_data = base64.b64encode(img_buffer.getvalue()).decode("utf-8")
+        
+        # Add the word cloud to the HTML
+        html_content += f"""
+        <div style="flex: 1 0 calc(33.33% - 20px); text-align: center; margin-bottom: 20px;">
+            <h3>{topic}</h3>
+            <img src="data:image/png;base64,{img_data}" alt="{topic}" style="max-width: 100%; height: auto;">
+        </div>
+        """
+
+    html_content += "</div>"
+    return html_content
+
+# Generate prevalent words filtered by saliency and visualize as inline HTML word clouds
+prevalent_words = get_prevalent_words_with_saliency(lda_gensim, num_words=15, saliency_threshold=0.2)
+wordclouds_html = generate_html_wordclouds_grid(prevalent_words, grid_columns=3)
+
+# Combine PyLDAvis HTML and Word Clouds HTML
+final_html = f"""
+<html>
+<head>
+    <title>LDA Visualization with Word Clouds</title>
+</head>
+<body>
+    {pyLDAvis_html}
+    <hr>
+    {wordclouds_html}
+</body>
+</html>
+"""
+
+# Save the combined HTML file
+output_file = "lda_visualization_with_wordclouds_grid.html"
+with open(output_file, "w") as f:
+    f.write(final_html)
+
+print(f"Final visualization saved as '{output_file}'")

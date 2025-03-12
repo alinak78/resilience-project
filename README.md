@@ -5,7 +5,7 @@
 The repository has script (app.py) that analyzes Description column of the 'climate adaptation solutions' csv to identify common topics and key phrases. Using Python libraries like **NLTK**, **Sklearn**, **Gensim**, and **PyLDAvis**, it performs text preprocessing, generates bigrams, and applies topic modeling with **Latent Dirichlet Allocation (LDA)**. The results are visualized interactively, allowing users to explore topics and related terms.
 
 Demo:
-![alt text]([http://url/to/img.png](https://github.com/alinak78/resilience-project/blob/main/topic_model.gif))
+!(alt text)[https://github.com/alinak78/resilience-project/blob/main/topic_model.gif]
 
 ### Key Features
 - **Data Loading and Preprocessing**: Cleans and tokenizes text descriptions.
